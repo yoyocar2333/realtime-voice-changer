@@ -45,16 +45,19 @@ Because grains are real slices of your own voice replayed at a new rate, the
 harmonic structure is preserved and the result sounds like a person, not a
 robot.
 
-### Measured harmonic-to-noise ratio (synthetic male /a/, +8 semitones)
+### Measured harmonic preservation (synthetic male /a/, +8 semitones)
 
-| Method                       | HNR (higher = cleaner) |
-| ---------------------------- | ---------------------- |
-| Original voice               | 6.8 dB                 |
-| **TD-PSOLA (this project)**  | **5.1 dB**             |
-| Phase vocoder (re-binning)   | 4.5 dB                 |
-| Time-stretch + resample      | 3.0 dB                 |
+The regression test uses a synthetic 120 Hz vowel with deterministic excitation.
+On the current implementation, the same helper metric gives approximately:
 
-(See `tests/test_dsp.py::test_psola_preserves_harmonics`.)
+| Signal | HNR (higher = cleaner) |
+| --- | ---: |
+| Original synthetic vowel | 20.1 dB |
+| TD-PSOLA output (+8 st, formant 1.15×) | 18.2 dB |
+
+The exact value is metric- and signal-dependent, so the CI test uses a conservative
+threshold rather than treating HNR as a perceptual MOS score. See
+`tests/test_dsp.py::test_psola_preserves_harmonics`.
 
 ## Real-time streaming
 
@@ -79,7 +82,7 @@ block so memory stays bounded.
 | Block size (1024 @ 44.1 kHz) | ~23 ms     |
 | System audio buffers         | device-dependent |
 
-Round-trip is typically ~70 ms — imperceptible for conversation.
+The offline pipeline begins emitting processed blocks after roughly 46–70 ms depending on pitch direction/preset. Real end-to-end round-trip latency is higher and device/driver-dependent; the benchmark intentionally reports the DSP contribution separately.
 
 ## Known limitations
 
@@ -88,3 +91,8 @@ shifts (e.g. the +10 "loli" preset) still get a little grainy, because the
 method *moves* your existing voice rather than *regenerating* a target timbre.
 For broadcast-quality, indistinguishable conversion you need a neural model
 (e.g. RVC / so-vits-svc); see the README.
+
+
+## Reproducible offline benchmark
+
+Run `python benchmarks/benchmark_offline.py` to measure pitch-target accuracy, steady-state block compute time, and DSP startup buffering on the current host. The benchmark calls the production `AudioEngine` and does not require audio hardware.
