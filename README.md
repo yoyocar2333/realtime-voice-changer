@@ -1,12 +1,12 @@
 <div align="center">
 
-# 🎙️ Realtime Voice Changer
+# 🎙️ Streaming TD-PSOLA Real-Time Voice Changer
 
-**Lightweight, real-time voice changer using TD-PSOLA — natural male↔female conversion for Discord and other VoIP apps, without the metallic "phase-vocoder" sound.**
+**CPU-only real-time voice conversion built around a stateful TD-PSOLA streaming engine, with independent pitch/formant control, hardware-free tests, and a reproducible offline benchmark.**
 
-輕量級即時變聲器，採用 TD-PSOLA 時域演算法，男女互轉自然不金屬，可直接用於 Discord 等語音軟體。
+CPU-only 即時變聲器：以 stateful TD-PSOLA 串流引擎獨立控制音高與共振峰，附硬體無關測試與可重現 benchmark。
 
-[![tests](https://github.com/NTUquantum/realtime-voice-changer/actions/workflows/tests.yml/badge.svg)](https://github.com/NTUquantum/realtime-voice-changer/actions)
+[![tests](https://github.com/yoyocar2333/realtime-voice-changer/actions/workflows/tests.yml/badge.svg)](https://github.com/yoyocar2333/realtime-voice-changer/actions)
 ![python](https://img.shields.io/badge/python-3.8%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -39,14 +39,14 @@ sound female rather than just higher.
 - 🎭 **9 presets** — young/mature female, loli, deep/mature male, robot, alien, cave
 - 🎛️ **Manual trims** — pitch, 3-band EQ, gain layered on top of any preset
 - 📊 Live meters, CPU readout, noise gate, settings persistence
-- 🪶 **Light** — < 17 % of one CPU core, < 80 MB RAM, ~70 ms latency
-- 🧪 **Tested** — 19 hardware-free DSP tests in CI
+- ⚡ **Real-time budget** — 1024 samples @ 44.1 kHz gives a 23.22 ms block budget; the reference offline run uses 1.80–2.80 ms p50 compute across the five voice presets
+- 🧪 **Tested** — 19 hardware-free DSP tests in CI; the reproducible synthetic benchmark measures ≤0.33% F0 target error across five pitch presets
 - 🖥️ GUI **and** headless CLI
 
 ### Install
 
 ```bash
-git clone https://github.com/NTUquantum/realtime-voice-changer.git
+git clone https://github.com/yoyocar2333/realtime-voice-changer.git
 cd realtime-voice-changer
 python -m pip install -r requirements.txt
 ```
@@ -119,17 +119,44 @@ For broadcast-quality, indistinguishable conversion use a neural model:
 This project is the lightweight, no-GPU, no-training option that's "good enough"
 for casual use.
 
+### Engineering evidence
+
+The project is intentionally structured as a small DSP/systems portfolio project rather than only a GUI demo:
+
+- `StreamPSOLA` is **stateful and block-based**: autocorrelation pitch tracking, analysis epochs, overlap-add synthesis, formant resampling, bounded streaming buffers.
+- `AudioEngine.process()` is **hardware-independent**, so the complete DSP chain can be tested without a microphone or sound card.
+- The real-time callback path includes FIFO priming, smoothed makeup gain, block-boundary de-clicking, noise-gate reset, EQ/effects, limiter, and a monitor ring buffer.
+- CI covers pitch movement, preset ranges, harmonic preservation, clipping/NaN safety, silence, pitch glides, and ring-buffer wrap-around.
+
+### Reproducible benchmark
+
+Run:
+
+```bash
+python benchmarks/benchmark_offline.py
+```
+
+The script synthesizes a repeatable 120 Hz male `/a/` vowel and feeds the **actual `AudioEngine`** in 1024-sample blocks. A reference run on Python 3.13.5 / Linux x86_64 produced:
+
+| Preset | Target F0 | Measured F0 | Error | p50 compute | Startup buffer |
+|---|---:|---:|---:|---:|---:|
+| 年輕女聲 | 190.5 Hz | 191.1 Hz | 0.33% | 2.76 ms | 69.7 ms |
+| 成熟女聲 | 160.2 Hz | 160.6 Hz | 0.23% | 2.75 ms | 69.7 ms |
+| 蘿莉音 | 213.8 Hz | 214.4 Hz | 0.29% | 2.80 ms | 69.7 ms |
+| 大叔低音 | 84.9 Hz | 85.0 Hz | 0.17% | 1.80 ms | 46.4 ms |
+| 成熟男聲 | 100.9 Hz | 101.1 Hz | 0.20% | 2.29 ms | 69.7 ms |
+
+Compute time is host-dependent; the important comparison is against the **23.22 ms/block real-time budget**. Device/driver buffering is not included in the offline startup figure.
+
 ### Development
 
 ```bash
 pip install -e ".[dev]"
 pytest -q
+python benchmarks/benchmark_offline.py
 ```
 
-The tests synthesise glottal-source voices and assert that pitch shifting
-actually moves F0, that presets land in the right range, that harmonics are
-preserved (low metallic artefact) and that the stream never clicks or clips —
-all without audio hardware.
+The tests synthesize glottal-source voices and assert that pitch shifting actually moves F0, presets land in the intended range, harmonics are preserved, and the stream never clicks, clips, or emits NaNs — all without audio hardware.
 
 ---
 
@@ -149,14 +176,14 @@ all without audio hardware.
 - 🎭 **9 種預設**——年輕/成熟女聲、蘿莉、大叔/成熟男聲、機器人、外星人、洞穴
 - 🎛️ **手動微調**——音調、三段 EQ、音量，疊加在任何預設上
 - 📊 即時音量計、CPU 顯示、噪音門、設定自動記憶
-- 🪶 **輕量**——CPU < 17%、記憶體 < 80MB、延遲約 70ms
-- 🧪 **有測試**——19 個不需音訊硬體的 DSP 測試
+- ⚡ **即時運算預算**——44.1 kHz / 1024 samples 每 block 有 23.22 ms；參考離線 benchmark 的五組聲線 p50 為 1.80–2.80 ms
+- 🧪 **可驗證**——19 個不需音訊硬體的 DSP 測試；五組移調預設的合成語音 F0 目標誤差皆 ≤0.33%
 - 🖥️ 圖形介面與命令列皆可
 
 ### 安裝
 
 ```bash
-git clone https://github.com/NTUquantum/realtime-voice-changer.git
+git clone https://github.com/yoyocar2333/realtime-voice-changer.git
 cd realtime-voice-changer
 python -m pip install -r requirements.txt
 ```
@@ -199,6 +226,15 @@ Discord：**設定 → 語音與視訊 → 輸入裝置 → `CABLE Output`**。
 | 🎀 蘿莉音  | ~214 Hz | 動漫風，處理最多 |
 | 🧔 大叔低音 | ~85 Hz | 渾厚男聲 |
 | 👨 成熟男聲 | ~101 Hz | 自然低沉男聲 |
+
+### 書審 / 工程重點
+
+這個 repo 的核心不是 GUI，而是可驗證的串流 DSP：
+
+- `StreamPSOLA`：自相關基頻偵測、analysis epoch、overlap-add、formant resampling、bounded streaming buffer。
+- `AudioEngine.process()` 完全不依賴音訊硬體，可離線測整條 DSP pipeline。
+- 19 個 CI 測試涵蓋移調正確性、harmonic preservation、silence/glide、clipping/NaN 與 ring buffer。
+- `python benchmarks/benchmark_offline.py` 可重現五組聲線的 F0 誤差與每 block 運算時間；參考結果的最大 F0 誤差為 **0.33%**。
 
 ### 誠實的限制與進階（RVC）
 
