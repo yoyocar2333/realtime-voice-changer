@@ -29,3 +29,5 @@ Thumbs.db
 
 # App config (user-specific, generated at runtime)
 settings.json
+# Generated frame-level data; checked-in summaries live under docs/results/.
+benchmark_results/

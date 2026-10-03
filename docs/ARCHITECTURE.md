@@ -84,6 +84,14 @@ block so memory stays bounded.
 
 The offline pipeline begins emitting processed blocks after roughly 46–70 ms depending on pitch direction/preset. Real end-to-end round-trip latency is higher and device/driver-dependent; the benchmark intentionally reports the DSP contribution separately.
 
+These are separate quantities, not an end-to-end latency measurement. The
+40 ms centered F0-analysis window consumes about 20 ms of samples after its
+timestamp; `lookahead_s=0.045` is the wider PSOLA buffering setting. A
+1024-sample callback spans 23.22 ms, but adding one block to lookahead does
+not account for synthesis readiness, callback scheduling, FIFO occupancy,
+driver queues, or converters. Measure the actual route with synchronized
+loopback captures; see [the measurement protocol](F0_PILOT.md#loopback-量測).
+
 ## Known limitations
 
 Real-time, lightweight, pure-DSP voice conversion has a ceiling: large pitch

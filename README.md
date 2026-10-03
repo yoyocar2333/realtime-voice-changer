@@ -236,6 +236,31 @@ Discord：**設定 → 語音與視訊 → 輸入裝置 → `CABLE Output`**。
 - 19 個 CI 測試涵蓋移調正確性、harmonic preservation、silence/glide、clipping/NaN 與 ring buffer。
 - `python benchmarks/benchmark_offline.py` 可重現五組聲線的 F0 誤差與每 block 運算時間；參考結果的最大 F0 誤差為 **0.33%**。
 
+### 串流基頻研究：可重現的先導實驗
+
+新增與現有音訊引擎分開的 F0 評測：相同輸入窗比較既有自相關估測器與
+YIN-CMNDF 基準，掃描窗長、SNR、固定音高與滑音。研究問題是：
+**在明確的資訊可用時間與延遲預算下，如何選擇估測窗與基頻方法？**
+
+```bash
+python -m pip install -e '.[dev,benchmark]'
+python benchmarks/benchmark_f0.py --seeds 10
+python -m pytest -q
+```
+
+在 44.1 kHz、40 ms 窗、20 dB 白雜訊、五種固定基頻與十組種子的
+2,450 個窗／方法中，ACF 與 YIN-CMNDF 的絕對 F0 誤差中位數分別為
+**3.93、0.56 cents**，該切片兩者有聲檢出率均為 100%。
+這是估測器層級的合成訊號結果，和上方完整變聲 pipeline 的測試分開解讀。
+
+- [完整設定、指標與全部 SNR 結果](docs/F0_PILOT.md)
+- [機器可讀結果](docs/results/f0_pilot_summary.json)
+- [硬體 loopback 量測方法](docs/F0_PILOT.md#loopback-量測)
+- 測試集共 26 項：原有 19 項 DSP 測試加上 7 項評測／延遲分析檢查。
+
+40 ms 分析窗、45 ms 前視緩衝設定與 23.22 ms 音訊區塊各有不同意義。
+端到端延遲須由實際裝置量測，本次先導實驗未包含硬體 loopback 數據。
+
 ### 誠實的限制與進階（RVC）
 
 純 DSP 即時變聲有天花板：它是「搬移」你的聲音、不是「重新生成」目標音色，所以移調多時仍會有點人工感。若要做到幾乎聽不出來的擬真轉換，需要神經網路模型：
